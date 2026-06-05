@@ -74,3 +74,22 @@ func NewPCIAddress(addr string) (*libvirtxml.DomainAddressPCI, error) {
 		Function: new(uint(function)),
 	}, nil
 }
+
+// EnsureSharedMemoryBacking ensures the domain has shared memory backing.
+func EnsureSharedMemoryBacking(domain *libvirtxml.Domain) {
+	if domain.MemoryBacking == nil {
+		domain.MemoryBacking = &libvirtxml.DomainMemoryBacking{
+			MemoryAccess: &libvirtxml.DomainMemoryAccess{Mode: "shared"},
+		}
+		return
+	}
+
+	if domain.MemoryBacking.MemoryAccess == nil {
+		domain.MemoryBacking.MemoryAccess = &libvirtxml.DomainMemoryAccess{Mode: "shared"}
+		return
+	}
+
+	if domain.MemoryBacking.MemoryAccess.Mode != "shared" {
+		domain.MemoryBacking.MemoryAccess.Mode = "shared"
+	}
+}
