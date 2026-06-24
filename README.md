@@ -23,6 +23,7 @@ The plugin runs as a sidecar container in the virt-launcher pod. KubeVirt calls 
 5. Returns the modified domain XML to KubeVirt
 
 Currently supports the [OVS-DPDK DRA driver](https://github.com/amorenoz/dra-driver-ovsdpdk).
+Supported architectures: arm64, amd64.
 
 ## Prerequisites
 
