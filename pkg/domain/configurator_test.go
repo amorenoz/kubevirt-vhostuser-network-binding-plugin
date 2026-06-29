@@ -106,6 +106,15 @@ func vhostSource(path string) *libvirtxml.DomainInterfaceSource {
 	}
 }
 
+// ifaceDriver returns the expected DomainInterfaceDriver for a vhost-user interface.
+func ifaceDriver() *libvirtxml.DomainInterfaceDriver {
+	return &libvirtxml.DomainInterfaceDriver{
+		TXQueueSize: domain.QueueSize,
+		RXQueueSize: domain.QueueSize,
+		Queues:      1,
+	}
+}
+
 // pciAddr is a helper to build a DomainAddressPCI from four uint values.
 func pciAddr(dom, bus, slot, fn uint) *libvirtxml.DomainAddressPCI {
 	return &libvirtxml.DomainAddressPCI{
@@ -200,7 +209,7 @@ var _ = Describe("vhostuser network configurator", func() {
 					Alias:  utils.NewUserDefinedAlias("default"),
 					Model:  &libvirtxml.DomainInterfaceModel{Type: "virtio"},
 					Source: vhostSource("/var/run/vhost/default.sock"),
-					Driver: &libvirtxml.DomainInterfaceDriver{Queues: 1},
+					Driver: ifaceDriver(),
 				},
 			),
 			Entry("PCI address",
@@ -210,7 +219,7 @@ var _ = Describe("vhostuser network configurator", func() {
 					Model:   &libvirtxml.DomainInterfaceModel{Type: "virtio"},
 					Source:  vhostSource("/var/run/vhost/default.sock"),
 					Address: &libvirtxml.DomainAddress{PCI: pciAddr(0, 2, 2, 0)},
-					Driver:  &libvirtxml.DomainInterfaceDriver{Queues: 1},
+					Driver:  ifaceDriver(),
 				},
 			),
 			Entry("MAC address",
@@ -220,7 +229,7 @@ var _ = Describe("vhostuser network configurator", func() {
 					Model:  &libvirtxml.DomainInterfaceModel{Type: "virtio"},
 					Source: vhostSource("/var/run/vhost/default.sock"),
 					MAC:    &libvirtxml.DomainInterfaceMAC{Address: "02:02:02:02:02:02"},
-					Driver: &libvirtxml.DomainInterfaceDriver{Queues: 1},
+					Driver: ifaceDriver(),
 				},
 			),
 			Entry("ACPI address",
@@ -230,7 +239,7 @@ var _ = Describe("vhostuser network configurator", func() {
 					Model:  &libvirtxml.DomainInterfaceModel{Type: "virtio"},
 					Source: vhostSource("/var/run/vhost/default.sock"),
 					ACPI:   &libvirtxml.DomainDeviceACPI{Index: uint(2)},
-					Driver: &libvirtxml.DomainInterfaceDriver{Queues: 1},
+					Driver: ifaceDriver(),
 				},
 			),
 		)
@@ -277,7 +286,7 @@ var _ = Describe("vhostuser network configurator", func() {
 					Alias:  utils.NewUserDefinedAlias("default"),
 					Model:  &libvirtxml.DomainInterfaceModel{Type: "virtio"},
 					Source: vhostSource("/var/run/vhost/default.sock"),
-					Driver: &libvirtxml.DomainInterfaceDriver{Queues: 1},
+					Driver: ifaceDriver(),
 				},
 			}))
 		})
@@ -323,14 +332,14 @@ var _ = Describe("vhostuser network configurator", func() {
 					Alias:  utils.NewUserDefinedAlias("default"),
 					Model:  &libvirtxml.DomainInterfaceModel{Type: "virtio"},
 					Source: vhostSource("/var/run/vhost/default.sock"),
-					Driver: &libvirtxml.DomainInterfaceDriver{Queues: 1},
+					Driver: ifaceDriver(),
 				},
 				{
 					Alias:  utils.NewUserDefinedAlias("net1"),
 					Model:  &libvirtxml.DomainInterfaceModel{Type: "virtio"},
 					Source: vhostSource("/var/run/vhost/net1.sock"),
 					MAC:    &libvirtxml.DomainInterfaceMAC{Address: "02:00:00:00:00:01"},
-					Driver: &libvirtxml.DomainInterfaceDriver{Queues: 1},
+					Driver: ifaceDriver(),
 				},
 				{
 					Alias:   utils.NewUserDefinedAlias("net2"),
@@ -338,7 +347,7 @@ var _ = Describe("vhostuser network configurator", func() {
 					Source:  vhostSource("/var/run/vhost/net2.sock"),
 					MAC:     &libvirtxml.DomainInterfaceMAC{Address: "02:00:00:00:00:02"},
 					Address: &libvirtxml.DomainAddress{PCI: pciAddr(0, 3, 0, 0)},
-					Driver:  &libvirtxml.DomainInterfaceDriver{Queues: 1},
+					Driver:  ifaceDriver(),
 				},
 			}))
 		})
@@ -370,7 +379,7 @@ var _ = Describe("vhostuser network configurator", func() {
 				Alias:  utils.NewUserDefinedAlias("default"),
 				Model:  &libvirtxml.DomainInterfaceModel{Type: "virtio"},
 				Source: vhostSource("/var/run/vhost/default.sock"),
-				Driver: &libvirtxml.DomainInterfaceDriver{Queues: 1},
+				Driver: ifaceDriver(),
 			}))
 		})
 
@@ -570,6 +579,8 @@ var _ = Describe("vhostuser network configurator", func() {
 			Expect(mutatedDomain.Devices.Interfaces).To(HaveLen(1))
 			drv := mutatedDomain.Devices.Interfaces[0].Driver
 			Expect(drv).ToNot(BeNil())
+			Expect(drv.TXQueueSize).To(Equal(domain.QueueSize))
+			Expect(drv.RXQueueSize).To(Equal(domain.QueueSize))
 		})
 
 		It("should apply multiqueue to all interfaces", func() {

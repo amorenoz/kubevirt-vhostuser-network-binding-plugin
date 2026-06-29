@@ -32,6 +32,8 @@ import (
 const (
 	// MaxQueueNum is the maximum number if virtqueues.
 	MaxQueueNum = uint(256)
+	// QueueSize is the default queue size.
+	QueueSize = uint(1024)
 )
 
 type VhostUserInterface struct {
@@ -149,7 +151,9 @@ func (p VhostUserNetworkConfigurator) generateDomainInterface(vhostIface *VhostU
 			},
 		},
 		Driver: &libvirtxml.DomainInterfaceDriver{
-			Queues: p.queues,
+			TXQueueSize: QueueSize,
+			RXQueueSize: QueueSize,
+			Queues:      p.queues,
 		},
 	}
 
