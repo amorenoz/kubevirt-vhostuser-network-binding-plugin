@@ -29,6 +29,11 @@ import (
 	"kubevirt.io/vhostuser-network-binding-plugin/pkg/utils"
 )
 
+const (
+	// QueueSize is the size of the virtio TX and RX queues
+	QueueSize uint = 1024
+)
+
 type VhostUserInterface struct {
 	VmiSpecIface *vmschema.Interface
 	Metadata     driver.VhostMetadata
@@ -138,7 +143,9 @@ func (p VhostUserNetworkConfigurator) generateDomainInterface(vhostIface *VhostU
 			},
 		},
 		Driver: &libvirtxml.DomainInterfaceDriver{
-			Queues: p.queues,
+			TXQueueSize: QueueSize,
+			RXQueueSize: QueueSize,
+			Queues:      p.queues,
 		},
 	}
 
