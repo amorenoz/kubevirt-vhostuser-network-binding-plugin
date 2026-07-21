@@ -67,13 +67,14 @@ func (s InfoServer) Info(_ context.Context, _ *hooksInfo.InfoParams) (*hooksInfo
 
 // V1alpha3Server implements the KubeVirt hooks v1alpha3 gRPC server.
 type V1alpha3Server struct {
-	draDriver driver.DRADriver
-	Done      chan struct{}
+	draDriver         driver.DRADriver
+	Done              chan struct{}
+	BindingPluginName string
 }
 
 // NewV1alpha3Server returns a V1alpha3Server backed by the given DRADriver.
-func NewV1alpha3Server(draDriver driver.DRADriver, done chan struct{}) V1alpha3Server {
-	return V1alpha3Server{draDriver: draDriver, Done: done}
+func NewV1alpha3Server(draDriver driver.DRADriver, done chan struct{}, bindingPluginName string) V1alpha3Server {
+	return V1alpha3Server{draDriver: draDriver, Done: done, BindingPluginName: bindingPluginName}
 }
 
 func (s V1alpha3Server) OnDefineDomain(_ context.Context, params *hooksV1alpha3.OnDefineDomainParams) (*hooksV1alpha3.OnDefineDomainResult, error) {
@@ -82,7 +83,7 @@ func (s V1alpha3Server) OnDefineDomain(_ context.Context, params *hooksV1alpha3.
 		return nil, fmt.Errorf("failed to unmarshal VMI: %w", err)
 	}
 
-	vhostuserConfigurator, err := domain.NewVhostUserNetworkConfigurator(vmi, s.draDriver)
+	vhostuserConfigurator, err := domain.NewVhostUserNetworkConfigurator(vmi, s.draDriver, s.BindingPluginName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create vhostuser configurator: %w", err)
 	}

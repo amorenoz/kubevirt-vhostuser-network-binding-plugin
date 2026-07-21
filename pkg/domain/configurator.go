@@ -29,11 +29,6 @@ import (
 	"kubevirt.io/vhostuser-network-binding-plugin/pkg/utils"
 )
 
-const (
-	// VhostUserPluginName vhost-user binding plugin name should be registered to Kubevirt through Kubevirt CR
-	VhostUserPluginName = "vhostuser"
-)
-
 type VhostUserInterface struct {
 	VmiSpecIface *vmschema.Interface
 	Metadata     driver.VhostMetadata
@@ -53,9 +48,10 @@ type ClaimInfo struct {
 func NewVhostUserNetworkConfigurator(
 	vmi *vmschema.VirtualMachineInstance,
 	draDriver driver.DRADriver,
+	bindingPluginName string,
 ) (*VhostUserNetworkConfigurator, error) {
 
-	vhostIfaces, err := getVhostUserInterfaces(vmi, draDriver)
+	vhostIfaces, err := getVhostUserInterfaces(vmi, draDriver, bindingPluginName)
 	if err != nil {
 		return nil, err
 	}
@@ -139,12 +135,12 @@ func lookupIfaceByAliasName(ifaces []libvirtxml.DomainInterface, name string) *l
 	return nil
 }
 
-func getVhostUserInterfaces(vmi *vmschema.VirtualMachineInstance, draDriver driver.DRADriver) ([]*VhostUserInterface, error) {
+func getVhostUserInterfaces(vmi *vmschema.VirtualMachineInstance, draDriver driver.DRADriver, bindingPluginName string) ([]*VhostUserInterface, error) {
 	vhostIfaces := make([]*VhostUserInterface, 0)
 
 	for i := range vmi.Spec.Domain.Devices.Interfaces {
 		iface := &vmi.Spec.Domain.Devices.Interfaces[i]
-		if iface.Binding == nil || iface.Binding.Name != VhostUserPluginName {
+		if iface.Binding == nil || iface.Binding.Name != bindingPluginName {
 			continue
 		}
 

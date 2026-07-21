@@ -121,7 +121,7 @@ var _ = Describe("vhostuser network configurator", func() {
 		DescribeTable("should fail given",
 			func(ifaces []vmschema.Interface, networks []vmschema.Network, drv driver.DRADriver) {
 				vmi := buildVMI(ifaces, networks)
-				_, err := domain.NewVhostUserNetworkConfigurator(vmi, drv)
+				_, err := domain.NewVhostUserNetworkConfigurator(vmi, drv, "vhostuser")
 				Expect(err).To(HaveOccurred())
 			},
 			Entry("no interfaces",
@@ -160,10 +160,22 @@ var _ = Describe("vhostuser network configurator", func() {
 			networks := []vmschema.Network{draNetwork("default", "default", "vhost-port")}
 			vmi := buildVMI(ifaces, networks)
 
-			testMutator, err := domain.NewVhostUserNetworkConfigurator(vmi, defaultDriver("default"))
+			testMutator, err := domain.NewVhostUserNetworkConfigurator(vmi, defaultDriver("default"), "vhostuser")
 			Expect(err).ToNot(HaveOccurred())
 
 			_, err = testMutator.Mutate(&libvirtxml.Domain{})
+			Expect(err).To(HaveOccurred())
+		})
+
+		It("should fail if the dynamic binding plugin name does not match", func() {
+			ifaces := []vmschema.Interface{{
+				Name:    "default",
+				Binding: &vmschema.PluginBinding{Name: "vhostuser"},
+			}}
+			networks := []vmschema.Network{draNetwork("default", "default", "vhost-port")}
+			vmi := buildVMI(ifaces, networks)
+
+			_, err := domain.NewVhostUserNetworkConfigurator(vmi, defaultDriver("default"), "different-binding-name")
 			Expect(err).To(HaveOccurred())
 		})
 	})
@@ -175,7 +187,7 @@ var _ = Describe("vhostuser network configurator", func() {
 				networks := []vmschema.Network{draNetwork(iface.Name, iface.Name, "vhost-port")}
 				vmi := buildVMI(ifaces, networks)
 
-				testMutator, err := domain.NewVhostUserNetworkConfigurator(vmi, defaultDriver(iface.Name))
+				testMutator, err := domain.NewVhostUserNetworkConfigurator(vmi, defaultDriver(iface.Name), "vhostuser")
 				Expect(err).ToNot(HaveOccurred())
 
 				mutatedDomain, err := testMutator.Mutate(&libvirtxml.Domain{})
@@ -224,7 +236,7 @@ var _ = Describe("vhostuser network configurator", func() {
 			networks := []vmschema.Network{draNetwork("default", "default", "vhost-port")}
 			vmi := buildVMI(ifaces, networks)
 
-			testMutator, err := domain.NewVhostUserNetworkConfigurator(vmi, defaultDriver("default"))
+			testMutator, err := domain.NewVhostUserNetworkConfigurator(vmi, defaultDriver("default"), "vhostuser")
 			Expect(err).ToNot(HaveOccurred())
 
 			mutatedDomain, err := testMutator.Mutate(&libvirtxml.Domain{})
@@ -243,7 +255,7 @@ var _ = Describe("vhostuser network configurator", func() {
 			}
 			vmi := buildVMI(ifaces, networks)
 
-			testMutator, err := domain.NewVhostUserNetworkConfigurator(vmi, defaultDriver("default"))
+			testMutator, err := domain.NewVhostUserNetworkConfigurator(vmi, defaultDriver("default"), "vhostuser")
 			Expect(err).ToNot(HaveOccurred())
 
 			existingIface := libvirtxml.DomainInterface{Alias: utils.NewUserDefinedAlias("existing-iface")}
@@ -270,7 +282,7 @@ var _ = Describe("vhostuser network configurator", func() {
 			networks := []vmschema.Network{draNetwork("default", "default", "vhost-port")}
 			vmi := buildVMI(ifaces, networks)
 
-			testMutator, err := domain.NewVhostUserNetworkConfigurator(vmi, defaultDriver("default"))
+			testMutator, err := domain.NewVhostUserNetworkConfigurator(vmi, defaultDriver("default"), "vhostuser")
 			Expect(err).ToNot(HaveOccurred())
 
 			mutatedDomain, err := testMutator.Mutate(&libvirtxml.Domain{})
@@ -295,7 +307,7 @@ var _ = Describe("vhostuser network configurator", func() {
 			vmi := buildVMI(ifaces, networks)
 
 			testMutator, err := domain.NewVhostUserNetworkConfigurator(vmi,
-				defaultDriver("default", "net1", "net2"),
+				defaultDriver("default", "net1", "net2"), "vhostuser",
 			)
 			Expect(err).ToNot(HaveOccurred())
 
@@ -328,7 +340,7 @@ var _ = Describe("vhostuser network configurator", func() {
 			networks := []vmschema.Network{draNetwork("default", "default", "vhost-port")}
 			vmi := buildVMI(ifaces, networks)
 
-			testMutator, err := domain.NewVhostUserNetworkConfigurator(vmi, defaultDriver("default"))
+			testMutator, err := domain.NewVhostUserNetworkConfigurator(vmi, defaultDriver("default"), "vhostuser")
 			Expect(err).ToNot(HaveOccurred())
 
 			existingIface := libvirtxml.DomainInterface{
@@ -367,7 +379,7 @@ var _ = Describe("vhostuser network configurator", func() {
 			vmi := buildVMI(ifaces, networks)
 
 			testMutator, err := domain.NewVhostUserNetworkConfigurator(vmi,
-				defaultDriver("default", "multus2"),
+				defaultDriver("default", "multus2"), "vhostuser",
 			)
 			Expect(err).ToNot(HaveOccurred())
 
@@ -399,7 +411,7 @@ var _ = Describe("vhostuser network configurator", func() {
 			networks := []vmschema.Network{draNetwork("default", "default", "vhost-port")}
 			vmi := buildVMI(ifaces, networks)
 
-			testMutator, err := domain.NewVhostUserNetworkConfigurator(vmi, defaultDriver("default"))
+			testMutator, err := domain.NewVhostUserNetworkConfigurator(vmi, defaultDriver("default"), "vhostuser")
 			Expect(err).ToNot(HaveOccurred())
 
 			mutatedDomain, err := testMutator.Mutate(&libvirtxml.Domain{})
@@ -414,7 +426,7 @@ var _ = Describe("vhostuser network configurator", func() {
 			networks := []vmschema.Network{draNetwork("default", "default", "vhost-port")}
 			vmi := buildVMI(ifaces, networks)
 
-			testMutator, err := domain.NewVhostUserNetworkConfigurator(vmi, defaultDriver("default"))
+			testMutator, err := domain.NewVhostUserNetworkConfigurator(vmi, defaultDriver("default"), "vhostuser")
 			Expect(err).ToNot(HaveOccurred())
 
 			testDomain := &libvirtxml.Domain{
@@ -433,7 +445,7 @@ var _ = Describe("vhostuser network configurator", func() {
 			networks := []vmschema.Network{draNetwork("default", "default", "vhost-port")}
 			vmi := buildVMI(ifaces, networks)
 
-			testMutator, err := domain.NewVhostUserNetworkConfigurator(vmi, defaultDriver("default"))
+			testMutator, err := domain.NewVhostUserNetworkConfigurator(vmi, defaultDriver("default"), "vhostuser")
 			Expect(err).ToNot(HaveOccurred())
 
 			testDomain := &libvirtxml.Domain{

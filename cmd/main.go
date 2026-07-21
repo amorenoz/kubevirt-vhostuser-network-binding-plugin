@@ -37,7 +37,10 @@ import (
 	srv "kubevirt.io/vhostuser-network-binding-plugin/pkg/server"
 )
 
-const hookSocket = "vhostuser.sock"
+const (
+	hookSocket               = "vhostuser.sock"
+	defaultBindingPluginName = "vhostuser"
+)
 
 func main() {
 	draDriver := ovsdpdk.NewOvsDpdkDriver(draMetadata.DRAMetadata{})
@@ -59,7 +62,12 @@ func main() {
 	hooksInfo.RegisterInfoServer(server, srv.InfoServer{Version: "v1alpha3"})
 
 	shutdownChan := make(chan struct{})
-	hooksV1alpha3.RegisterCallbacksServer(server, srv.NewV1alpha3Server(draDriver, shutdownChan))
+
+	bindingPluginName := os.Getenv(hooks.NetworkBindingPluginNameEnvVar)
+	if bindingPluginName == "" {
+		bindingPluginName = defaultBindingPluginName
+	}
+	hooksV1alpha3.RegisterCallbacksServer(server, srv.NewV1alpha3Server(draDriver, shutdownChan, bindingPluginName))
 
 	log.Log.Infof("Starting hook server exposing 'info' and '%s' services on socket %q", "v1alpha3", socketPath)
 	srv.Serve(server, socket, shutdownChan)
