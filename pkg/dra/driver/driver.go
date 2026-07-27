@@ -25,6 +25,9 @@ package driver
 type VhostMetadata struct {
 	// VhostPath is the absolute in-container path to the vhost-user socket.
 	VhostPath string
+	// MTU is the custom MTU to configure on the interface, if present in the
+	// device metadata. Nil means the attribute was absent.
+	MTU *uint
 }
 
 // DRADriver extracts vhost-user socket information from a DRA driver's device
