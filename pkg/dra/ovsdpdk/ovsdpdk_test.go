@@ -21,6 +21,7 @@ package ovsdpdk_test
 
 import (
 	"fmt"
+	"math"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -57,6 +58,52 @@ func deviceMetadataWithAttr(key, value string) *drametadata.DeviceMetadata {
 						Name:   "dev0",
 						Attributes: map[resourceapi.QualifiedName]resourceapi.DeviceAttribute{
 							resourceapi.QualifiedName(key): {StringValue: new(value)},
+						},
+					},
+				},
+			},
+		},
+	}
+}
+
+// deviceMetadataWithVhostAndMTU builds a DeviceMetadata with both the
+// vhost-user-path string attribute and an mtu integer attribute.
+func deviceMetadataWithVhostAndMTU(vhostPath string, mtu int64) *drametadata.DeviceMetadata {
+	return &drametadata.DeviceMetadata{
+		Requests: []drametadata.DeviceMetadataRequest{
+			{
+				Name: "vhost-port",
+				Devices: []drametadata.Device{
+					{
+						Driver: ovsdpdk.DriverName,
+						Pool:   "node-0",
+						Name:   "dev0",
+						Attributes: map[resourceapi.QualifiedName]resourceapi.DeviceAttribute{
+							resourceapi.QualifiedName(ovsdpdk.VhostPathKey): {StringValue: &vhostPath},
+							resourceapi.QualifiedName(ovsdpdk.MTUKey):       {IntValue: &mtu},
+						},
+					},
+				},
+			},
+		},
+	}
+}
+
+// deviceMetadataWithVhostAndBadMTU builds a DeviceMetadata where the mtu
+// attribute has the wrong type (string instead of integer).
+func deviceMetadataWithVhostAndBadMTU(vhostPath, mtuStr string) *drametadata.DeviceMetadata {
+	return &drametadata.DeviceMetadata{
+		Requests: []drametadata.DeviceMetadataRequest{
+			{
+				Name: "vhost-port",
+				Devices: []drametadata.Device{
+					{
+						Driver: ovsdpdk.DriverName,
+						Pool:   "node-0",
+						Name:   "dev0",
+						Attributes: map[resourceapi.QualifiedName]resourceapi.DeviceAttribute{
+							resourceapi.QualifiedName(ovsdpdk.VhostPathKey): {StringValue: &vhostPath},
+							resourceapi.QualifiedName(ovsdpdk.MTUKey):       {StringValue: &mtuStr},
 						},
 					},
 				},
@@ -141,6 +188,87 @@ var _ = Describe("OvsDpdkDriver", func() {
 				Expect(err.Error()).To(ContainSubstring(ovsdpdk.VhostPathKey))
 				Expect(err.Error()).To(ContainSubstring("not a string"))
 			})
+		})
+
+		Context("mtu attribute", func() {
+			It("sets MTU in VhostMetadata when the attribute is present and valid", func() {
+				provider := &mockProvider{dm: deviceMetadataWithVhostAndMTU(vhostPath, 1500)}
+				d := ovsdpdk.NewOvsDpdkDriver(provider)
+
+				result, err := d.GetVhostMetadata(claimName, requestName)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(result.MTU).ToNot(BeNil())
+				Expect(*result.MTU).To(Equal(uint(1500)))
+			})
+
+			It("accepts the minimum valid MTU of 68", func() {
+				provider := &mockProvider{dm: deviceMetadataWithVhostAndMTU(vhostPath, 68)}
+				d := ovsdpdk.NewOvsDpdkDriver(provider)
+
+				result, err := d.GetVhostMetadata(claimName, requestName)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(result.MTU).ToNot(BeNil())
+				Expect(*result.MTU).To(Equal(uint(68)))
+			})
+
+			It("accepts the maximum valid MTU of 9702", func() {
+				provider := &mockProvider{dm: deviceMetadataWithVhostAndMTU(vhostPath, 9702)}
+				d := ovsdpdk.NewOvsDpdkDriver(provider)
+
+				result, err := d.GetVhostMetadata(claimName, requestName)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(result.MTU).ToNot(BeNil())
+				Expect(*result.MTU).To(Equal(uint(9702)))
+			})
+
+			It("leaves MTU nil when the attribute is absent", func() {
+				provider := &mockProvider{dm: deviceMetadataWithAttr(ovsdpdk.VhostPathKey, vhostPath)}
+				d := ovsdpdk.NewOvsDpdkDriver(provider)
+
+				result, err := d.GetVhostMetadata(claimName, requestName)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(result.MTU).To(BeNil())
+			})
+
+			It("returns an error when the mtu attribute is not an integer", func() {
+				provider := &mockProvider{dm: deviceMetadataWithVhostAndBadMTU(vhostPath, "1500")}
+				d := ovsdpdk.NewOvsDpdkDriver(provider)
+
+				_, err := d.GetVhostMetadata(claimName, requestName)
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(ContainSubstring(ovsdpdk.MTUKey))
+				Expect(err.Error()).To(ContainSubstring("not an integer"))
+			})
+
+			DescribeTable("returns an error when the mtu value is below the minimum",
+				func(mtu int64) {
+					provider := &mockProvider{dm: deviceMetadataWithVhostAndMTU(vhostPath, mtu)}
+					d := ovsdpdk.NewOvsDpdkDriver(provider)
+
+					_, err := d.GetVhostMetadata(claimName, requestName)
+					Expect(err).To(HaveOccurred())
+					Expect(err.Error()).To(ContainSubstring(ovsdpdk.MTUKey))
+					Expect(err.Error()).To(ContainSubstring("below minimum"))
+				},
+				Entry("negative", int64(-1)),
+				Entry("zero", int64(0)),
+				Entry("below 68", int64(67)),
+			)
+
+			DescribeTable("returns an error when the mtu value is above the maximum",
+				func(mtu int64) {
+					provider := &mockProvider{dm: deviceMetadataWithVhostAndMTU(vhostPath, mtu)}
+					d := ovsdpdk.NewOvsDpdkDriver(provider)
+
+					_, err := d.GetVhostMetadata(claimName, requestName)
+					Expect(err).To(HaveOccurred())
+					Expect(err.Error()).To(ContainSubstring(ovsdpdk.MTUKey))
+					Expect(err.Error()).To(ContainSubstring("above maximum"))
+				},
+				Entry("one-off", int64(9703)),
+				Entry("above", int64(10000)),
+				Entry("maxInt64", int64(math.MaxInt64)),
+			)
 		})
 	})
 })

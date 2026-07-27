@@ -92,6 +92,18 @@ func defaultDriver(claimNames ...string) mockDRADriver {
 	return mockDRADriver{metadata: metadata}
 }
 
+// driverWithMTU returns a mockDRADriver for a single claim that includes an MTU.
+func driverWithMTU(claimName string, mtu uint) mockDRADriver {
+	return mockDRADriver{
+		metadata: map[string]driver.VhostMetadata{
+			claimName: {
+				VhostPath: fmt.Sprintf("/var/run/vhost/%s.sock", claimName),
+				MTU:       new(mtu),
+			},
+		},
+	}
+}
+
 // vhostSource builds the expected libvirtxml vhost-user source for a given socket path.
 func vhostSource(path string) *libvirtxml.DomainInterfaceSource {
 	return &libvirtxml.DomainInterfaceSource{
@@ -209,12 +221,12 @@ var _ = Describe("vhostuser network configurator", func() {
 
 	Context("generate domain spec interface", func() {
 		DescribeTable("should add interface to domain spec given iface with",
-			func(iface vmschema.Interface, expectedDomainIface libvirtxml.DomainInterface) {
+			func(iface vmschema.Interface, drv driver.DRADriver, expectedDomainIface libvirtxml.DomainInterface) {
 				ifaces := []vmschema.Interface{iface}
 				networks := []vmschema.Network{draNetwork(iface.Name, iface.Name, "vhost-port")}
 				vmi := buildVMI(ifaces, networks)
 
-				testMutator, err := domain.NewVhostUserNetworkConfigurator(vmi, defaultDriver(iface.Name), "vhostuser")
+				testMutator, err := domain.NewVhostUserNetworkConfigurator(vmi, drv, "vhostuser")
 				Expect(err).ToNot(HaveOccurred())
 
 				mutatedDomain, err := testMutator.Mutate(&libvirtxml.Domain{})
@@ -223,6 +235,7 @@ var _ = Describe("vhostuser network configurator", func() {
 			},
 			Entry("vhostuser binding plugin",
 				vhostIface("default"),
+				defaultDriver("default"),
 				libvirtxml.DomainInterface{
 					Alias:  utils.NewUserDefinedAlias("default"),
 					Model:  &libvirtxml.DomainInterfaceModel{Type: "virtio"},
@@ -232,6 +245,7 @@ var _ = Describe("vhostuser network configurator", func() {
 			),
 			Entry("PCI address",
 				vmschema.Interface{Name: "default", Binding: &vmschema.PluginBinding{Name: "vhostuser"}, PciAddress: "0000:02:02.0"},
+				defaultDriver("default"),
 				libvirtxml.DomainInterface{
 					Alias:   utils.NewUserDefinedAlias("default"),
 					Model:   &libvirtxml.DomainInterfaceModel{Type: "virtio"},
@@ -242,6 +256,7 @@ var _ = Describe("vhostuser network configurator", func() {
 			),
 			Entry("MAC address",
 				vmschema.Interface{Name: "default", Binding: &vmschema.PluginBinding{Name: "vhostuser"}, MacAddress: "02:02:02:02:02:02"},
+				defaultDriver("default"),
 				libvirtxml.DomainInterface{
 					Alias:  utils.NewUserDefinedAlias("default"),
 					Model:  &libvirtxml.DomainInterfaceModel{Type: "virtio"},
@@ -252,11 +267,33 @@ var _ = Describe("vhostuser network configurator", func() {
 			),
 			Entry("ACPI address",
 				vmschema.Interface{Name: "default", Binding: &vmschema.PluginBinding{Name: "vhostuser"}, ACPIIndex: 2},
+				defaultDriver("default"),
 				libvirtxml.DomainInterface{
 					Alias:  utils.NewUserDefinedAlias("default"),
 					Model:  &libvirtxml.DomainInterfaceModel{Type: "virtio"},
 					Source: vhostSource("/var/run/vhost/default.sock"),
 					ACPI:   &libvirtxml.DomainDeviceACPI{Index: uint(2)},
+					Driver: ifaceDriver(),
+				},
+			),
+			Entry("MTU set in device metadata",
+				vhostIface("default"),
+				driverWithMTU("default", 1500),
+				libvirtxml.DomainInterface{
+					Alias:  utils.NewUserDefinedAlias("default"),
+					Model:  &libvirtxml.DomainInterfaceModel{Type: "virtio"},
+					Source: vhostSource("/var/run/vhost/default.sock"),
+					Driver: ifaceDriver(),
+					MTU:    &libvirtxml.DomainInterfaceMTU{Size: 1500},
+				},
+			),
+			Entry("no MTU in device metadata",
+				vhostIface("default"),
+				defaultDriver("default"),
+				libvirtxml.DomainInterface{
+					Alias:  utils.NewUserDefinedAlias("default"),
+					Model:  &libvirtxml.DomainInterfaceModel{Type: "virtio"},
+					Source: vhostSource("/var/run/vhost/default.sock"),
 					Driver: ifaceDriver(),
 				},
 			),
