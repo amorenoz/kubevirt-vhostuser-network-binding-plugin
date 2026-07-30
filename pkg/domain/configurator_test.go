@@ -158,6 +158,11 @@ var _ = Describe("vhostuser network configurator", func() {
 				[]vmschema.Network{draNetwork("default", "default", "vhost-port")},
 				mockDRADriver{err: fmt.Errorf("driver failure")},
 			),
+			Entry("unsupported interface model",
+				[]vmschema.Interface{{Name: "default", Binding: &vmschema.PluginBinding{Name: "vhostuser"}, Model: "e1000"}},
+				[]vmschema.Network{draNetwork("default", "default", "vhost-port")},
+				defaultDriver("default"),
+			),
 		)
 
 		It("should fail given interface with invalid PCI address", func() {
@@ -187,6 +192,19 @@ var _ = Describe("vhostuser network configurator", func() {
 			_, err := domain.NewVhostUserNetworkConfigurator(vmi, defaultDriver("default"), "different-binding-name")
 			Expect(err).To(HaveOccurred())
 		})
+
+		DescribeTable("should accept interface with model",
+			func(model string) {
+				ifaces := []vmschema.Interface{{Name: "default", Binding: &vmschema.PluginBinding{Name: "vhostuser"}, Model: model}}
+				networks := []vmschema.Network{draNetwork("default", "default", "vhost-port")}
+				vmi := buildVMI(ifaces, networks)
+
+				_, err := domain.NewVhostUserNetworkConfigurator(vmi, defaultDriver("default"), "vhostuser")
+				Expect(err).ToNot(HaveOccurred())
+			},
+			Entry("empty (default)", ""),
+			Entry("virtio", "virtio"),
+		)
 	})
 
 	Context("generate domain spec interface", func() {

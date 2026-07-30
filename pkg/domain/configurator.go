@@ -205,6 +205,10 @@ func getVhostUserInterfaces(vmi *vmschema.VirtualMachineInstance, draDriver driv
 			continue
 		}
 
+		if iface.Model != "" && iface.Model != "virtio" {
+			return nil, fmt.Errorf("interface %q: only virtio model supported, got %q", iface.Name, iface.Model)
+		}
+
 		claim, err := getClaimInfo(vmi, iface.Name)
 		if err != nil {
 			return nil, fmt.Errorf("interface %q: DRA claim: %w", iface.Name, err)
