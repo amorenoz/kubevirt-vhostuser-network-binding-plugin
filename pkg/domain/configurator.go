@@ -29,13 +29,22 @@ import (
 	"kubevirt.io/vhostuser-network-binding-plugin/pkg/utils"
 )
 
+const (
+	// MaxQueueNum is the maximum number if virtqueues.
+	MaxQueueNum = uint(256)
+	// QueueSize is the default queue size.
+	QueueSize = uint(1024)
+)
+
 type VhostUserInterface struct {
 	VmiSpecIface *vmschema.Interface
 	Metadata     driver.VhostMetadata
 }
 
 type VhostUserNetworkConfigurator struct {
-	interfaces []*VhostUserInterface
+	interfaces            []*VhostUserInterface
+	queues                uint
+	useVirtioTransitional bool
 }
 
 type ClaimInfo struct {
@@ -59,9 +68,56 @@ func NewVhostUserNetworkConfigurator(
 		return nil, fmt.Errorf("no vhost interfaces found")
 	}
 
+	queues := computeQueues(vmi)
+	useVirtioTransitional := vmi.Spec.Domain.Devices.UseVirtioTransitional != nil && *vmi.Spec.Domain.Devices.UseVirtioTransitional
+
 	return &VhostUserNetworkConfigurator{
-		interfaces: vhostIfaces,
+		interfaces:            vhostIfaces,
+		queues:                queues,
+		useVirtioTransitional: useVirtioTransitional,
 	}, nil
+}
+
+// computeQueues returns the number of virtio queues to configure for vhost-user
+// interfaces.
+func computeQueues(vmi *vmschema.VirtualMachineInstance) uint {
+	mq := vmi.Spec.Domain.Devices.NetworkInterfaceMultiQueue
+	if mq == nil || !*mq {
+		return 1
+	}
+	cpuSpec := vmi.Spec.Domain.CPU
+	if cpuSpec == nil {
+		return 1
+	}
+
+	cores := cpuSpec.Cores
+	sockets := cpuSpec.Sockets
+	threads := cpuSpec.Threads
+
+	if cores == 0 {
+		cores = 1
+	}
+	if sockets == 0 {
+		sockets = 1
+	}
+	if threads == 0 {
+		threads = 1
+	}
+
+	queues := uint(cores * sockets * threads)
+	if queues > MaxQueueNum {
+		return MaxQueueNum
+	}
+	return queues
+
+}
+
+// modelType returns the virtio model type string to use for the interface.
+func (p VhostUserNetworkConfigurator) modelType() string {
+	if p.useVirtioTransitional {
+		return "virtio-transitional"
+	}
+	return "virtio"
 }
 
 func (p VhostUserNetworkConfigurator) Mutate(domain *libvirtxml.Domain) (*libvirtxml.Domain, error) {
@@ -94,7 +150,7 @@ func (p VhostUserNetworkConfigurator) generateDomainInterface(vhostIface *VhostU
 
 	domIface := &libvirtxml.DomainInterface{
 		Alias: utils.NewUserDefinedAlias(vhostIface.VmiSpecIface.Name),
-		Model: &libvirtxml.DomainInterfaceModel{Type: "virtio"},
+		Model: &libvirtxml.DomainInterfaceModel{Type: p.modelType()},
 		Source: &libvirtxml.DomainInterfaceSource{
 			VHostUser: &libvirtxml.DomainInterfaceSourceVHostUser{
 				Chardev: &libvirtxml.DomainChardevSource{
@@ -104,6 +160,11 @@ func (p VhostUserNetworkConfigurator) generateDomainInterface(vhostIface *VhostU
 					},
 				},
 			},
+		},
+		Driver: &libvirtxml.DomainInterfaceDriver{
+			TXQueueSize: QueueSize,
+			RXQueueSize: QueueSize,
+			Queues:      p.queues,
 		},
 	}
 
@@ -142,6 +203,10 @@ func getVhostUserInterfaces(vmi *vmschema.VirtualMachineInstance, draDriver driv
 		iface := &vmi.Spec.Domain.Devices.Interfaces[i]
 		if iface.Binding == nil || iface.Binding.Name != bindingPluginName {
 			continue
+		}
+
+		if iface.Model != "" && iface.Model != "virtio" {
+			return nil, fmt.Errorf("interface %q: only virtio model supported, got %q", iface.Name, iface.Model)
 		}
 
 		claim, err := getClaimInfo(vmi, iface.Name)
