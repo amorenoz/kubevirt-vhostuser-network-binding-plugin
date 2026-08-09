@@ -22,7 +22,7 @@ The plugin runs as a sidecar container in the virt-launcher pod. KubeVirt calls 
    and sets `<memoryBacking>` to shared (required for DPDK)
 5. Returns the modified domain XML to KubeVirt
 
-Currently supports the [OVS-DPDK DRA driver](https://github.com/amorenoz/dra-driver-ovsdpdk).
+Currently supports the [OVS-DPDK DRA driver](https://github.com/k8snetworkplumbingwg/dra-driver-ovsdpdk).
 Supported architectures: arm64, amd64.
 
 ## Prerequisites
